@@ -13,6 +13,8 @@ import io.javalin.http.NotFoundResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +69,8 @@ public class TokenController {
 
         try {
             tokenService.createToken(request.name, normalize(request.permissions), secret,
-                    request.description == null ? "Created via API" : request.description);
+                    request.description == null ? "Created via API" : request.description,
+                    expiryOf(request.expiresInDays));
         } catch (IllegalArgumentException e) {
             throw new ConflictResponse(e.getMessage());
         }
@@ -96,6 +99,9 @@ public class TokenController {
 
         if (request.permissions != null) {
             tokenService.updateTokenPermissions(name, normalize(request.permissions));
+        }
+        if (request.expiresInDays != null) {
+            tokenService.setTokenExpiry(name, expiryOf(request.expiresInDays));
         }
         if (request.name != null && !request.name.isBlank() && !request.name.equals(name)) {
             try {
@@ -183,6 +189,19 @@ public class TokenController {
         return managers.size() == 1 && managers.getFirst().name.equals(name);
     }
 
+    /**
+     * Days rather than an instant: a client issuing a deploy token knows how long it should
+     * last, not the moment it should stop. Zero clears the expiry, so a token can be made
+     * permanent again through the same field that set it.
+     */
+    private static Instant expiryOf(Integer expiresInDays) {
+        if (expiresInDays == null || expiresInDays == 0) return null;
+        if (expiresInDays < 0) {
+            throw new BadRequestResponse("expiresInDays cannot be negative");
+        }
+        return Instant.now().plus(expiresInDays, ChronoUnit.DAYS);
+    }
+
     private static List<String> normalize(List<String> permissions) {
         List<String> result = new ArrayList<>();
         if (permissions == null) return result;
@@ -200,6 +219,7 @@ public class TokenController {
         public String description;
         public List<String> permissions;
         public List<RouteRequest> routes;
+        public Integer expiresInDays;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

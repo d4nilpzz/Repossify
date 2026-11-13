@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 /**
@@ -97,7 +99,7 @@ public class CommandConsole implements Runnable {
                  - help or ?
                  - docs
                  - version
-                 - generate_token <name> [<permissions>] [--secret=<secret>] [--silent]
+                 - generate_token <name> [<permissions>] [--secret=<secret>] [--expires=<days>] [--silent]
                  - list_tokens
                  - delete_token <name>
                  - delete_all_tokens
@@ -119,7 +121,7 @@ public class CommandConsole implements Runnable {
 
     private void generateToken(String[] args) {
         if (args.length < 1) {
-            LOGGER.warn("Usage: generate_token <name> [<permissions>] [--secret=<secret>] [--silent]");
+            LOGGER.warn("Usage: generate_token <name> [<permissions>] [--secret=<secret>] [--expires=<days>] [--silent]");
             return;
         }
 
@@ -127,10 +129,22 @@ public class CommandConsole implements Runnable {
         String permissionArg = "";
         String secret = null;
         boolean silent = false;
+        Integer expiresInDays = null;
 
         for (int i = 1; i < args.length; i++) {
             if (args[i].startsWith("--secret=")) {
                 secret = args[i].substring("--secret=".length());
+            } else if (args[i].startsWith("--expires=")) {
+                try {
+                    expiresInDays = Integer.valueOf(args[i].substring("--expires=".length()).trim());
+                } catch (NumberFormatException e) {
+                    LOGGER.error("--expires expects a number of days");
+                    return;
+                }
+                if (expiresInDays <= 0) {
+                    LOGGER.error("--expires expects a positive number of days");
+                    return;
+                }
             } else if (args[i].equalsIgnoreCase("--silent")) {
                 silent = true;
             } else {
@@ -144,10 +158,15 @@ public class CommandConsole implements Runnable {
                 ? new ArrayList<>()
                 : Arrays.asList(permissionArg.split(","));
 
+        Instant expiresAt = expiresInDays == null
+                ? null
+                : Instant.now().plus(expiresInDays, ChronoUnit.DAYS);
+
         try {
-            tokenService.createToken(name, permissions, secret);
+            tokenService.createToken(name, permissions, secret, "Generated via console", expiresAt);
             if (!silent) {
-                LOGGER.info("New token for \"{}\" [{}] with permissions: {}", name, secret, permissions);
+                LOGGER.info("New token for \"{}\" [{}] with permissions: {}, expires: {}",
+                        name, secret, permissions, expiresAt == null ? "never" : expiresAt);
             }
         } catch (IllegalArgumentException e) {
             LOGGER.error("Error creating token: {}", e.getMessage());
@@ -170,8 +189,11 @@ public class CommandConsole implements Runnable {
                         : token.routes.stream()
                         .map(route -> route.path() + "(" + route.routePermission() + ")")
                         .reduce((a, b) -> a + ", " + b).orElse("-");
-                LOGGER.info("  {} | permissions: {} | routes: {}",
-                        token.name, token.permissions.isEmpty() ? "-" : token.permissions, routes);
+                String expiry = token.expiresAt == null
+                        ? "never"
+                        : token.expiresAt + (token.isExpired() ? " (EXPIRED)" : "");
+                LOGGER.info("  {} | permissions: {} | routes: {} | expires: {}",
+                        token.name, token.permissions.isEmpty() ? "-" : token.permissions, routes, expiry);
             }
         } catch (Exception e) {
             LOGGER.error("Error listing tokens: {}", e.getMessage());

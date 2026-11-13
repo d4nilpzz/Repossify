@@ -102,6 +102,13 @@ public class TokenService {
                 LOGGER.info("Migrated access_tokens: added secret_lookup column");
             }
 
+            // Nullable on purpose: a token created before this column existed keeps
+            // working forever, which is exactly what it did before.
+            if (!columnExists(conn, "access_tokens", "expires_at")) {
+                stmt.execute("ALTER TABLE access_tokens ADD COLUMN expires_at TEXT");
+                LOGGER.info("Migrated access_tokens: added expires_at column");
+            }
+
             // Not UNIQUE: an existing database may already hold duplicates, and failing the
             // index creation would take startup down. Uniqueness is enforced on insert.
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_tokens_name ON access_tokens(name)");
@@ -125,6 +132,11 @@ public class TokenService {
 
     public AccessToken createToken(String name, List<String> permissions, String secret, String description)
             throws SQLException {
+        return createToken(name, permissions, secret, description, null);
+    }
+
+    public AccessToken createToken(String name, List<String> permissions, String secret, String description,
+                                   Instant expiresAt) throws SQLException {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Token name cannot be empty");
         }
@@ -135,12 +147,13 @@ public class TokenService {
         String plainSecret = (secret == null || secret.isEmpty()) ? generateSecret() : secret;
         String hashed = BCrypt.hashpw(plainSecret, BCrypt.gensalt());
         String createdAt = Instant.now().toString();
+        String expiry = expiresAt == null ? null : expiresAt.toString();
 
         try (Connection conn = DriverManager.getConnection(dbUrl)) {
             int tokenId;
             try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO access_tokens(name, secret, secret_lookup, type, description, created_at) " +
-                            "VALUES (?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO access_tokens(name, secret, secret_lookup, type, description, created_at, " +
+                            "expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
                     Statement.RETURN_GENERATED_KEYS)) {
                 ps.setString(1, name);
                 ps.setString(2, hashed);
@@ -148,6 +161,7 @@ public class TokenService {
                 ps.setString(4, "PERSISTENT");
                 ps.setString(5, description);
                 ps.setString(6, createdAt);
+                ps.setString(7, expiry);
                 ps.executeUpdate();
 
                 try (ResultSet rs = ps.getGeneratedKeys()) {
@@ -167,7 +181,7 @@ public class TokenService {
 
             invalidateCache();
             return new AccessToken(tokenId, "PERSISTENT", name, hashed, description,
-                    normalized, new ArrayList<>(), createdAt);
+                    normalized, new ArrayList<>(), createdAt, expiry);
         }
     }
 
@@ -268,6 +282,20 @@ public class TokenService {
         return newSecret;
     }
 
+    /** Sets or clears a token expiry. A null instant makes the token never expire again. */
+    public void setTokenExpiry(String name, Instant expiresAt) throws SQLException {
+        try (Connection conn = DriverManager.getConnection(dbUrl);
+             PreparedStatement ps = conn.prepareStatement(
+                     "UPDATE access_tokens SET expires_at = ? WHERE name = ?")) {
+            ps.setString(1, expiresAt == null ? null : expiresAt.toString());
+            ps.setString(2, name);
+            if (ps.executeUpdate() == 0) {
+                throw new IllegalArgumentException("Token " + name + " not found");
+            }
+        }
+        invalidateCache();
+    }
+
     public void deleteAllTokens() throws SQLException {
         try (Connection conn = DriverManager.getConnection(dbUrl);
              Statement stmt = conn.createStatement()) {
@@ -335,7 +363,7 @@ public class TokenService {
         if (secret == null || secret.isEmpty()) return null;
 
         AccessToken cached = authCache.getIfPresent(secret);
-        if (cached != null) return cached;
+        if (cached != null) return rejectIfExpired(cached);
 
         try (Connection conn = DriverManager.getConnection(dbUrl)) {
             AccessToken token = findByLookup(conn, secret);
@@ -355,7 +383,7 @@ public class TokenService {
 
         String cacheKey = name + " " + secret;
         AccessToken cached = authCache.getIfPresent(cacheKey);
-        if (cached != null) return cached;
+        if (cached != null) return rejectIfExpired(cached);
 
         try (Connection conn = DriverManager.getConnection(dbUrl);
              PreparedStatement ps = conn.prepareStatement("SELECT * FROM access_tokens WHERE name = ?")) {
@@ -364,7 +392,8 @@ public class TokenService {
                 if (!rs.next()) return null;
                 if (!BCrypt.checkpw(secret, rs.getString("secret"))) return null;
 
-                AccessToken token = hydrate(conn, rs);
+                AccessToken token = rejectIfExpired(hydrate(conn, rs));
+                if (token == null) return null;
                 backfillLookup(conn, token.id, rs.getString("secret_lookup"), secret);
                 authCache.put(cacheKey, token);
                 return token;
@@ -379,7 +408,7 @@ public class TokenService {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     if (BCrypt.checkpw(secret, rs.getString("secret"))) {
-                        return hydrate(conn, rs);
+                        return rejectIfExpired(hydrate(conn, rs));
                     }
                 }
             }
@@ -398,7 +427,8 @@ public class TokenService {
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 if (BCrypt.checkpw(secret, rs.getString("secret"))) {
-                    AccessToken token = hydrate(conn, rs);
+                    AccessToken token = rejectIfExpired(hydrate(conn, rs));
+                    if (token == null) return null;
                     backfillLookup(conn, token.id, null, secret);
                     return token;
                 }
@@ -417,6 +447,19 @@ public class TokenService {
         }
     }
 
+    /**
+     * Drops an expired token on the authentication paths only. Listing and lookup by name
+     * still return it, so the dashboard can show that it expired rather than letting it
+     * silently disappear from the token list.
+     */
+    private AccessToken rejectIfExpired(AccessToken token) {
+        if (token != null && token.isExpired()) {
+            LOGGER.warn("Token {} was presented after expiring at {}", token.name, token.expiresAt);
+            return null;
+        }
+        return token;
+    }
+
     private AccessToken hydrate(Connection conn, ResultSet rs) throws SQLException {
         int id = rs.getInt("id");
         String type = rs.getString("type");
@@ -424,6 +467,7 @@ public class TokenService {
         String hash = rs.getString("secret");
         String desc = rs.getString("description");
         String createdAt = rs.getString("created_at");
+        String expiresAt = rs.getString("expires_at");
 
         List<String> permissions = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(
@@ -447,7 +491,7 @@ public class TokenService {
         }
 
         return new AccessToken(id, type, name, hash, desc, permissions, routes,
-                Objects.requireNonNullElse(createdAt, Instant.now().toString()));
+                Objects.requireNonNullElse(createdAt, Instant.now().toString()), expiresAt);
     }
 
     /** All tokens, without secrets. Backs the token management API and the console. */

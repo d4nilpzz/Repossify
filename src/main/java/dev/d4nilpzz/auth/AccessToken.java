@@ -3,6 +3,7 @@ package dev.d4nilpzz.auth;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 public class AccessToken {
@@ -18,6 +19,10 @@ public class AccessToken {
     public final String secret;
 
     public final String createdAt;
+
+    /** ISO-8601 instant after which this token stops authenticating, or null to never expire. */
+    public final String expiresAt;
+
     public final String description;
     public final List<String> permissions; // MANAGER (m)
     public final List<Route> routes;
@@ -30,6 +35,13 @@ public class AccessToken {
 
     public AccessToken(int id, String type, String name, String secret, String description,
                        List<String> permissions, List<Route> routes, String createdAt) {
+        this(id, type, name, secret, description, permissions, routes, createdAt, null);
+    }
+
+    public AccessToken(int id, String type, String name, String secret, String description,
+                       List<String> permissions, List<Route> routes, String createdAt,
+                       String expiresAt) {
+        this.expiresAt = expiresAt;
         this.id = id;
         this.type = type;
         this.name = name;
@@ -40,6 +52,25 @@ public class AccessToken {
         this.routes = routes;
         this.isManager = permissions.stream()
                 .anyMatch(p -> p.equalsIgnoreCase("M") || p.equalsIgnoreCase("MANAGER"));
+    }
+
+    /**
+     * Whether this token has passed its expiry. Serialized, so the dashboard can mark a token
+     * as expired rather than leaving the operator to compare timestamps.
+     */
+    public boolean isExpired() {
+        return isExpiredAt(Instant.now());
+    }
+
+    boolean isExpiredAt(Instant moment) {
+        if (expiresAt == null || expiresAt.isBlank()) return false;
+        try {
+            return Instant.parse(expiresAt).isBefore(moment);
+        } catch (DateTimeParseException e) {
+            // An expiry that cannot be read is treated as passed: a corrupt value must never
+            // be the reason a token keeps working forever.
+            return true;
+        }
     }
 
     /**
