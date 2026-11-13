@@ -33,11 +33,12 @@ public class ClientConsoleController {
     }
 
     public void registerRoutes(RoutesConfig routes) {
+        // Same as the metrics socket: the upgrade request is the only point where the
+        // credentials are still readable, and where a refusal reaches the client.
+        routes.wsBeforeUpgrade("/api/console/ws", authService::requireManager);
+
         routes.ws("/api/console/ws", ws -> {
-            ws.onConnect(ctx -> {
-                authService.requireManager(ctx.getUpgradeCtx$javalin());
-                clients.add(ctx);
-            });
+            ws.onConnect(ctx -> clients.add(ctx));
             ws.onClose(ctx -> clients.remove(ctx));
             ws.onError(ctx -> clients.remove(ctx));
         });

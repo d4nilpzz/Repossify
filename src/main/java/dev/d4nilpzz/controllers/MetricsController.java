@@ -45,14 +45,16 @@ public class MetricsController {
     }
 
     public void registerRoutes(RoutesConfig routes) {
+        // Host CPU, memory and disk are operational data, so this is manager-only.
+        //
+        // Checked on the upgrade request rather than in onConnect. Jetty 12 detaches the
+        // servlet request once the socket is open, so reading credentials from an already
+        // upgraded context throws; and a rejection here is a real HTTP status on the
+        // handshake instead of a socket that opens and then silently sends nothing.
+        routes.wsBeforeUpgrade("/api/metrics", authService::requireManager);
+
         routes.ws("/api/metrics", ws -> {
-            ws.onConnect(ctx -> {
-                // Host CPU, memory and disk are operational data, so this is manager-only.
-                // Authentication happens on the upgrade request; a socket that is already
-                // open cannot be re-checked, which is why onClose does no verification.
-                authService.requireManager(ctx.getUpgradeCtx$javalin());
-                clients.add(ctx);
-            });
+            ws.onConnect(ctx -> clients.add(ctx));
             ws.onClose(ctx -> clients.remove(ctx));
             ws.onError(ctx -> clients.remove(ctx));
         });
