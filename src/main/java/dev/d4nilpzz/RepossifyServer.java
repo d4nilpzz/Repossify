@@ -1,5 +1,6 @@
 package dev.d4nilpzz;
 
+import dev.d4nilpzz.auth.AuthRateLimiter;
 import dev.d4nilpzz.auth.AuthService;
 import dev.d4nilpzz.auth.TokenService;
 import dev.d4nilpzz.config.ConfigService;
@@ -68,7 +69,8 @@ public class RepossifyServer {
         this.tokenService = new TokenService(jdbcUrl);
         this.statisticsService = new StatisticsService(jdbcUrl);
 
-        this.authService = new AuthService(tokenService);
+        this.authService = new AuthService(tokenService, new AuthRateLimiter(
+                config.rateLimit.enabled, config.rateLimit.maxFailures, config.rateLimit.windowSeconds));
         this.repositoryService = new RepositoryService(workingDirectory);
         this.metadataService = new MetadataService();
         this.proxyService = new ProxyService(repositoryService);

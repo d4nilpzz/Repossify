@@ -2,7 +2,10 @@ package dev.d4nilpzz.auth;
 
 import io.javalin.http.Context;
 import io.javalin.http.ForbiddenResponse;
+import io.javalin.http.TooManyRequestsResponse;
 import io.javalin.http.UnauthorizedResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -18,13 +21,21 @@ import java.util.Optional;
  */
 public class AuthService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(AuthService.class);
+
     public static final String SESSION_COOKIE = "repossify_session";
     private static final String REALM = "Repossify";
 
     private final TokenService tokenService;
+    private final AuthRateLimiter rateLimiter;
 
     public AuthService(TokenService tokenService) {
+        this(tokenService, AuthRateLimiter.disabled());
+    }
+
+    public AuthService(TokenService tokenService, AuthRateLimiter rateLimiter) {
         this.tokenService = tokenService;
+        this.rateLimiter = rateLimiter;
     }
 
     /**
@@ -38,16 +49,28 @@ public class AuthService {
         Credentials credentials = extract(ctx);
         if (credentials == null) return Optional.empty();
 
+        String client = ctx.ip();
+        // A blocked caller is treated as anonymous instead of being rejected here, so public
+        // routes keep answering it and verification is never reached.
+        if (rateLimiter.isBlocked(client)) return Optional.empty();
+
         AccessToken token;
         try {
             token = credentials.name() != null
                     ? tokenService.authenticate(credentials.name(), credentials.secret())
                     : tokenService.getTokenBySecret(credentials.secret());
         } catch (Exception e) {
+            LOGGER.warn("Credential lookup failed for {}: {}", client, e.getMessage());
             return Optional.empty();
         }
 
-        if (token == null) return Optional.empty();
+        if (token == null) {
+            rateLimiter.recordFailure(client);
+            LOGGER.warn("Rejected credentials from {}", client);
+            return Optional.empty();
+        }
+
+        rateLimiter.recordSuccess(client);
         ctx.attribute("token", token);
         return Optional.of(token);
     }
@@ -59,10 +82,7 @@ public class AuthService {
      * @throws ForbiddenResponse    when the caller is known but lacks the permission
      */
     public AccessToken require(Context ctx, String path, RoutePermission permission) {
-        AccessToken token = resolve(ctx).orElseThrow(() -> {
-            challenge(ctx);
-            return new UnauthorizedResponse("Valid credentials required");
-        });
+        AccessToken token = resolve(ctx).orElseThrow(() -> rejectAnonymous(ctx));
 
         if (!token.hasAccess(path, permission)) {
             throw new ForbiddenResponse(
@@ -74,10 +94,7 @@ public class AuthService {
 
     /** Requires a token with the MANAGER permission. Used for anything administrative. */
     public AccessToken requireManager(Context ctx) {
-        AccessToken token = resolve(ctx).orElseThrow(() -> {
-            challenge(ctx);
-            return new UnauthorizedResponse("Valid credentials required");
-        });
+        AccessToken token = resolve(ctx).orElseThrow(() -> rejectAnonymous(ctx));
 
         if (!token.isManager) {
             throw new ForbiddenResponse("This action requires a manager token");
@@ -96,6 +113,19 @@ public class AuthService {
      */
     public void challenge(Context ctx) {
         ctx.header("WWW-Authenticate", "Basic realm=\"" + REALM + "\", charset=\"UTF-8\"");
+    }
+
+    /**
+     * 429 rather than 401 once the caller is blocked, so a client holding a stale token
+     * learns why its retries stopped being answered instead of looping on a bare 401.
+     */
+    private RuntimeException rejectAnonymous(Context ctx) {
+        if (rateLimiter.isBlocked(ctx.ip())) {
+            return new TooManyRequestsResponse("Too many failed authentication attempts; retry in "
+                    + rateLimiter.window().toSeconds() + "s");
+        }
+        challenge(ctx);
+        return new UnauthorizedResponse("Valid credentials required");
     }
 
     private Credentials extract(Context ctx) {

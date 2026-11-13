@@ -26,6 +26,7 @@ public class ServerConfig {
     public Cors cors = new Cors();
     public Ssl ssl = new Ssl();
     public ForwardedIp forwardedIp = new ForwardedIp();
+    public RateLimit rateLimit = new RateLimit();
 
     /** How often stale snapshot builds are pruned. 0 disables the scheduled run. */
     public int garbageCollectorIntervalMinutes = 60;
@@ -61,5 +62,17 @@ public class ServerConfig {
     public static class ForwardedIp {
         public boolean enabled = false;
         public String header = "X-Forwarded-For";
+    }
+
+    /**
+     * Caps how often one address may present wrong credentials. Secret verification is
+     * deliberately slow, so without a cap an unauthenticated caller can spend the server's
+     * CPU at will. Only failures that reached verification count, never anonymous requests.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class RateLimit {
+        public boolean enabled = true;
+        public int maxFailures = 20;
+        public int windowSeconds = 60;
     }
 }
