@@ -388,13 +388,15 @@ public class CommandConsole implements Runnable {
         long usedStore = totalStore - volume.getUsableSpace() / 1024 / 1024 / 1024;
         int storePercent = totalStore == 0 ? 0 : (int) ((usedStore * 100) / totalStore);
 
-        System.out.printf(
+        // Logged rather than printed so the dashboard terminal receives it too; it reads the
+        // console's logger, and this was the one command that bypassed it.
+        LOGGER.info(String.format(
                 "CPU     [ %s ] %d%% (%d cores)%n" +
                         "Memory  [ %s ] %.2f/%.2f GB%n" +
-                        "Storage [ %s ] %d GB / %d GB%n",
+                        "Storage [ %s ] %d GB / %d GB",
                 buildBar(cpuPercent), cpuPercent, cpuCores,
                 buildBar(memoryPercent), usedMemory, maxMemory,
-                buildBar(storePercent), usedStore, totalStore);
+                buildBar(storePercent), usedStore, totalStore));
     }
 
     private void stop() {
