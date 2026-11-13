@@ -5,6 +5,7 @@ import dev.d4nilpzz.Repossify;
 
 import java.io.File;
 import java.lang.management.ManagementFactory;
+import java.util.Locale;
 
 public final class MetricsCompiler {
 
@@ -29,12 +30,15 @@ public final class MetricsCompiler {
         double diskFree = disk.getUsableSpace() / (1024.0 * 1024 * 1024);
         double diskUsed = diskTotal - diskFree;
 
-        return """
+        // Locale.ROOT, not the default one: on a host whose locale uses comma decimals
+        // %.2f renders 20,38 and the payload stops being JSON. The dashboard parses this
+        // inside a try/catch, so it drops the frame and shows nothing at all.
+        return String.format(Locale.ROOT, """
                 {
                   "cpu": { "used": %d, "max": 100 },
                   "ram": { "used": %.2f, "max": %.2f },
                   "storage": { "used": %.2f, "max": %.2f }
                 }
-                """.formatted(cpu, ramUsed, ramTotal, diskUsed, diskTotal);
+                """, cpu, ramUsed, ramTotal, diskUsed, diskTotal);
     }
 }
