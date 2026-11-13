@@ -14,6 +14,7 @@ import dev.d4nilpzz.repos.*;
 import io.javalin.Javalin;
 import io.javalin.compression.CompressionStrategy;
 import io.javalin.compression.Gzip;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.HttpResponseException;
 import io.javalin.http.staticfiles.Location;
 import org.eclipse.jetty.server.HttpConfiguration;
@@ -90,8 +91,8 @@ public class RepossifyServer {
     }
 
     private Javalin buildApp(ConfigService configService) {
-        Javalin javalin = Javalin.create(cfg -> {
-            cfg.showJavalinBanner = false;
+        return Javalin.create(cfg -> {
+            cfg.startup.showJavalinBanner = false;
             cfg.http.maxRequestSize = config.maxRequestSize;
 
             if (config.compression) {
@@ -103,9 +104,9 @@ public class RepossifyServer {
                                         HttpFiles.INCOMPRESSIBLE_TYPES.stream())
                                 .distinct()
                                 .toList());
-                cfg.http.customCompression(compression);
+                cfg.http.compressionStrategy = compression;
             } else {
-                cfg.http.disableCompression();
+                cfg.http.compressionStrategy = CompressionStrategy.NONE;
             }
 
             cfg.staticFiles.add("/static");
@@ -137,26 +138,29 @@ public class RepossifyServer {
             }
 
             if (config.ssl.enabled) configureSsl(cfg);
+
+            // Javalin 7 accepts routes and exception handlers only while the app is being
+            // created; there is no equivalent of adding them to a built instance.
+            registerErrorHandlers(cfg.routes);
+            registerControllers(cfg.routes, configService);
         });
+    }
 
-        registerErrorHandlers(javalin);
-
-        new PageController(authService, repositoryService).registerRoutes(javalin);
-        new AuthController(authService).registerRoutes(javalin);
+    private void registerControllers(RoutesConfig routes, ConfigService configService) {
+        new PageController(authService, repositoryService).registerRoutes(routes);
+        new AuthController(authService).registerRoutes(routes);
         new ConfigController(authService, repositoryService, configService, proxyService, statisticsService)
-                .registerRoutes(javalin);
-        new TokenController(authService, tokenService).registerRoutes(javalin);
-        new BadgeController(repositoryService, metadataService).registerRoutes(javalin);
-        new SearchController(authService, repositoryService, metadataService).registerRoutes(javalin);
-        new StatisticsController(authService, statisticsService, repositoryService).registerRoutes(javalin);
+                .registerRoutes(routes);
+        new TokenController(authService, tokenService).registerRoutes(routes);
+        new BadgeController(repositoryService, metadataService).registerRoutes(routes);
+        new SearchController(authService, repositoryService, metadataService).registerRoutes(routes);
+        new StatisticsController(authService, statisticsService, repositoryService).registerRoutes(routes);
         new FileApiController(authService, repositoryService, metadataService, garbageCollector)
-                .registerRoutes(javalin);
+                .registerRoutes(routes);
         new MavenController(authService, repositoryService, metadataService, proxyService,
-                statisticsService, garbageCollector).registerRoutes(javalin);
-        new ClientConsoleController(authService, new ConsoleBridge(console)).registerRoutes(javalin);
-        metricsController.registerRoutes(javalin);
-
-        return javalin;
+                statisticsService, garbageCollector).registerRoutes(routes);
+        new ClientConsoleController(authService, new ConsoleBridge(console)).registerRoutes(routes);
+        metricsController.registerRoutes(routes);
     }
 
     /**
@@ -193,18 +197,18 @@ public class RepossifyServer {
     }
 
     /** Uniform JSON error bodies instead of Javalin's mix of plain text and JSON. */
-    private static void registerErrorHandlers(Javalin app) {
-        app.exception(HttpResponseException.class, (exception, ctx) -> {
+    private static void registerErrorHandlers(RoutesConfig routes) {
+        routes.exception(HttpResponseException.class, (exception, ctx) -> {
             ctx.status(exception.getStatus());
             ctx.json(ErrorResponse.of(exception.getStatus(), exception.getMessage()));
         });
 
-        app.exception(IllegalArgumentException.class, (exception, ctx) -> {
+        routes.exception(IllegalArgumentException.class, (exception, ctx) -> {
             ctx.status(400);
             ctx.json(ErrorResponse.of(400, exception.getMessage()));
         });
 
-        app.exception(Exception.class, (exception, ctx) -> {
+        routes.exception(Exception.class, (exception, ctx) -> {
             LOGGER.error("Unhandled error on {} {}", ctx.method(), ctx.path(), exception);
             ctx.status(500);
             ctx.json(ErrorResponse.of(500, "Internal server error"));

@@ -7,7 +7,7 @@ import dev.d4nilpzz.http.PathSafety;
 import dev.d4nilpzz.repos.*;
 import dev.d4nilpzz.utils.ChecksumUtils;
 import dev.d4nilpzz.utils.MavenUtils;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.BadRequestResponse;
 import io.javalin.http.Context;
 import io.javalin.http.NotFoundResponse;
@@ -51,9 +51,9 @@ public class FileApiController {
         this.garbageCollector = garbageCollector;
     }
 
-    public void registerRoutes(Javalin app) {
-        app.post("/api/file/upload", this::handleUpload);
-        app.delete("/api/file/delete", this::handleDelete);
+    public void registerRoutes(RoutesConfig routes) {
+        routes.post("/api/file/upload", this::handleUpload);
+        routes.delete("/api/file/delete", this::handleDelete);
     }
 
     private void handleUpload(Context ctx) throws IOException {

@@ -3,7 +3,7 @@ package dev.d4nilpzz.controllers;
 import dev.d4nilpzz.repos.MetadataService;
 import dev.d4nilpzz.repos.RepositoryData;
 import dev.d4nilpzz.repos.RepositoryService;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 
 import java.io.IOException;
@@ -25,8 +25,8 @@ public class BadgeController {
         this.metadataService = metadataService;
     }
 
-    public void registerRoutes(Javalin app) {
-        app.get("/api/badge/latest/{repository}/{group}/{owner}/{artifact}", this::handleLatest);
+    public void registerRoutes(RoutesConfig routes) {
+        routes.get("/api/badge/latest/{repository}/{group}/{owner}/{artifact}", this::handleLatest);
     }
 
     private void handleLatest(Context ctx) throws IOException {

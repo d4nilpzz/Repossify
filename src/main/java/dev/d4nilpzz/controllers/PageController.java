@@ -6,7 +6,7 @@ import dev.d4nilpzz.auth.RoutePermission;
 import dev.d4nilpzz.repos.RepositoryData;
 import dev.d4nilpzz.repos.RepositoryService;
 import dev.d4nilpzz.repos.Visibility;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 
 import java.io.InputStream;
@@ -24,10 +24,10 @@ public class PageController {
         this.repositoryService = repositoryService;
     }
 
-    public void registerRoutes(Javalin app) {
-        app.get("/", this::serveIndex);
-        app.get("/api/page/content", this::handlePageContent);
-        app.get("/api/version", ctx -> ctx.json(java.util.Map.of("version", Repossify.VERSION)));
+    public void registerRoutes(RoutesConfig routes) {
+        routes.get("/", this::serveIndex);
+        routes.get("/api/page/content", this::handlePageContent);
+        routes.get("/api/version", ctx -> ctx.json(java.util.Map.of("version", Repossify.VERSION)));
     }
 
     private void serveIndex(Context ctx) throws Exception {

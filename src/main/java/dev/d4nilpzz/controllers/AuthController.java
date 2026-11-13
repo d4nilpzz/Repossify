@@ -2,7 +2,7 @@ package dev.d4nilpzz.controllers;
 
 import dev.d4nilpzz.auth.AccessToken;
 import dev.d4nilpzz.auth.AuthService;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 import io.javalin.http.Cookie;
 import io.javalin.http.SameSite;
@@ -21,8 +21,8 @@ public class AuthController {
         this.authService = authService;
     }
 
-    public void registerRoutes(Javalin app) {
-        app.post("/api/auth/signin", ctx -> {
+    public void registerRoutes(RoutesConfig routes) {
+        routes.post("/api/auth/signin", ctx -> {
             String secret = bearerOf(ctx);
             if (secret == null) throw new UnauthorizedResponse("Sign in requires a Bearer token");
 
@@ -36,14 +36,14 @@ public class AuthController {
             ctx.json(token);
         });
 
-        app.post("/api/auth/signout", ctx -> {
+        routes.post("/api/auth/signout", ctx -> {
             // Overwritten rather than removed so the attributes match the cookie that was
             // set; a browser ignores a deletion whose flags differ from the original.
             ctx.cookie(sessionCookie(ctx, "", 0));
             ctx.json(java.util.Map.of("message", "Signed out"));
         });
 
-        app.get("/api/auth/me", ctx -> {
+        routes.get("/api/auth/me", ctx -> {
             AccessToken token = authService.resolve(ctx)
                     .orElseThrow(() -> new UnauthorizedResponse("Not signed in"));
             ctx.json(token);

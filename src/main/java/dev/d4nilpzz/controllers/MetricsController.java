@@ -2,7 +2,7 @@ package dev.d4nilpzz.controllers;
 
 import dev.d4nilpzz.auth.AuthService;
 import dev.d4nilpzz.utils.MetricsCompiler;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.websocket.WsContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,8 +44,8 @@ public class MetricsController {
         }, 0, 5, TimeUnit.SECONDS);
     }
 
-    public void registerRoutes(Javalin app) {
-        app.ws("/api/metrics", ws -> {
+    public void registerRoutes(RoutesConfig routes) {
+        routes.ws("/api/metrics", ws -> {
             ws.onConnect(ctx -> {
                 // Host CPU, memory and disk are operational data, so this is manager-only.
                 // Authentication happens on the upgrade request; a socket that is already

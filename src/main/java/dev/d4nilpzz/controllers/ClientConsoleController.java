@@ -3,7 +3,7 @@ package dev.d4nilpzz.controllers;
 import dev.d4nilpzz.auth.AccessToken;
 import dev.d4nilpzz.auth.AuthService;
 import dev.d4nilpzz.console.ConsoleBridge;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 import io.javalin.websocket.WsContext;
 import org.slf4j.Logger;
@@ -32,8 +32,8 @@ public class ClientConsoleController {
         this.bridge = bridge;
     }
 
-    public void registerRoutes(Javalin app) {
-        app.ws("/api/console/ws", ws -> {
+    public void registerRoutes(RoutesConfig routes) {
+        routes.ws("/api/console/ws", ws -> {
             ws.onConnect(ctx -> {
                 authService.requireManager(ctx.getUpgradeCtx$javalin());
                 clients.add(ctx);
@@ -42,7 +42,7 @@ public class ClientConsoleController {
             ws.onError(ctx -> clients.remove(ctx));
         });
 
-        app.post("/api/console/exec", this::execute);
+        routes.post("/api/console/exec", this::execute);
     }
 
     private void execute(Context ctx) {

@@ -7,7 +7,7 @@ import dev.d4nilpzz.repos.ProxyService;
 import dev.d4nilpzz.repos.RepositoryData;
 import dev.d4nilpzz.repos.RepositoryService;
 import dev.d4nilpzz.repos.StatisticsService;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.BadRequestResponse;
 import io.javalin.http.Context;
 import org.slf4j.Logger;
@@ -47,9 +47,9 @@ public class ConfigController {
         this.statisticsService = statisticsService;
     }
 
-    public void registerRoutes(Javalin app) {
-        app.put("/api/config/update", this::handleUpdate);
-        app.get("/api/config/server", ctx -> {
+    public void registerRoutes(RoutesConfig routes) {
+        routes.put("/api/config/update", this::handleUpdate);
+        routes.get("/api/config/server", ctx -> {
             authService.requireManager(ctx);
             ctx.json(configService.current());
         });

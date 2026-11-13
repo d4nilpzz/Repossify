@@ -4,7 +4,7 @@ import dev.d4nilpzz.auth.AuthService;
 import dev.d4nilpzz.repos.RepositoryData;
 import dev.d4nilpzz.repos.RepositoryService;
 import dev.d4nilpzz.repos.StatisticsService;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 
 import java.util.ArrayList;
@@ -30,9 +30,9 @@ public class StatisticsController {
         this.repositoryService = repositoryService;
     }
 
-    public void registerRoutes(Javalin app) {
-        app.get("/api/statistics", this::summary);
-        app.get("/api/statistics/top", this::top);
+    public void registerRoutes(RoutesConfig routes) {
+        routes.get("/api/statistics", this::summary);
+        routes.get("/api/statistics/top", this::top);
     }
 
     private void summary(Context ctx) throws Exception {

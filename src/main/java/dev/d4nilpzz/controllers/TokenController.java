@@ -5,7 +5,7 @@ import dev.d4nilpzz.auth.AccessToken;
 import dev.d4nilpzz.auth.AuthService;
 import dev.d4nilpzz.auth.RoutePermission;
 import dev.d4nilpzz.auth.TokenService;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.BadRequestResponse;
 import io.javalin.http.ConflictResponse;
 import io.javalin.http.Context;
@@ -38,14 +38,14 @@ public class TokenController {
         this.tokenService = tokenService;
     }
 
-    public void registerRoutes(Javalin app) {
-        app.get("/api/tokens", this::list);
-        app.post("/api/tokens", this::create);
-        app.delete("/api/tokens/{name}", this::delete);
-        app.put("/api/tokens/{name}", this::update);
-        app.post("/api/tokens/{name}/regenerate", this::regenerate);
-        app.post("/api/tokens/{name}/routes", this::addRoute);
-        app.delete("/api/tokens/{name}/routes", this::removeRoute);
+    public void registerRoutes(RoutesConfig routes) {
+        routes.get("/api/tokens", this::list);
+        routes.post("/api/tokens", this::create);
+        routes.delete("/api/tokens/{name}", this::delete);
+        routes.put("/api/tokens/{name}", this::update);
+        routes.post("/api/tokens/{name}/regenerate", this::regenerate);
+        routes.post("/api/tokens/{name}/routes", this::addRoute);
+        routes.delete("/api/tokens/{name}/routes", this::removeRoute);
     }
 
     private void list(Context ctx) throws Exception {

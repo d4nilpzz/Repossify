@@ -7,7 +7,7 @@ import dev.d4nilpzz.http.HttpFiles;
 import dev.d4nilpzz.http.PathSafety;
 import dev.d4nilpzz.repos.*;
 import dev.d4nilpzz.utils.ChecksumUtils;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,15 +53,15 @@ public class MavenController {
         this.garbageCollector = garbageCollector;
     }
 
-    public void registerRoutes(Javalin app) {
+    public void registerRoutes(RoutesConfig routes) {
         // Javalin's "*" does not match an empty remainder, so the repository index has to be
         // registered on both forms of the root path rather than relying on /repo/*.
-        app.get("/repo", ctx -> renderRepositoryIndex(ctx));
-        app.get(PREFIX, ctx -> renderRepositoryIndex(ctx));
-        app.get(PREFIX + "*", ctx -> handleRead(ctx, true));
-        app.head(PREFIX + "*", ctx -> handleRead(ctx, false));
-        app.put(PREFIX + "*", this::handleDeploy);
-        app.delete(PREFIX + "*", this::handleDelete);
+        routes.get("/repo", ctx -> renderRepositoryIndex(ctx));
+        routes.get(PREFIX, ctx -> renderRepositoryIndex(ctx));
+        routes.get(PREFIX + "*", ctx -> handleRead(ctx, true));
+        routes.head(PREFIX + "*", ctx -> handleRead(ctx, false));
+        routes.put(PREFIX + "*", this::handleDeploy);
+        routes.delete(PREFIX + "*", this::handleDelete);
     }
 
     /* ===================== resolution ===================== */

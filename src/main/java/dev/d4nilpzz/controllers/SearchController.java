@@ -4,7 +4,7 @@ import dev.d4nilpzz.auth.AuthService;
 import dev.d4nilpzz.auth.RoutePermission;
 import dev.d4nilpzz.http.PathSafety;
 import dev.d4nilpzz.repos.*;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.BadRequestResponse;
 import io.javalin.http.Context;
 import io.javalin.http.NotFoundResponse;
@@ -37,9 +37,9 @@ public class SearchController {
         this.metadataService = metadataService;
     }
 
-    public void registerRoutes(Javalin app) {
-        app.get("/api/maven/search", this::search);
-        app.get("/api/maven/details/{repository}/<path>", this::details);
+    public void registerRoutes(RoutesConfig routes) {
+        routes.get("/api/maven/search", this::search);
+        routes.get("/api/maven/details/{repository}/<path>", this::details);
     }
 
     private void search(Context ctx) throws IOException {
