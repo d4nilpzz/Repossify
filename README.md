@@ -21,7 +21,7 @@
 
 ---
 
-<img width="1209" height="748" alt="{AA134C8B-A447-4E9B-8906-44B440355061}" src="https://github.com/user-attachments/assets/6e6321d3-332e-4751-9151-4fa1e5dcfa05" />
+<img width="1209" height="748" alt="{AA134C8B-A447-4E9B-8906-44B440355061}" src="https://github.com/user-attachments/assets/0a92746a-ed66-4b2d-b766-1bda16c7008c" />
 
 ## Features
 
