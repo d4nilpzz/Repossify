@@ -413,7 +413,7 @@ public class CommandConsole implements Runnable {
         // Logged rather than printed so the dashboard terminal receives it too; it reads the
         // console's logger, and this was the one command that bypassed it.
         LOGGER.info(String.format(
-                "CPU     [ %s ] %d%% (%d cores)%n" +
+                "\nCPU     [ %s ] %d%% (%d cores)%n" +
                         "Memory  [ %s ] %.2f/%.2f GB%n" +
                         "Storage [ %s ] %d GB / %d GB",
                 buildBar(cpuPercent), cpuPercent, cpuCores,
