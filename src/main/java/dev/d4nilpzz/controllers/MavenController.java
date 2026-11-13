@@ -4,6 +4,7 @@ import dev.d4nilpzz.auth.AuthService;
 import dev.d4nilpzz.auth.RoutePermission;
 import dev.d4nilpzz.http.ErrorResponse;
 import dev.d4nilpzz.http.HttpFiles;
+import dev.d4nilpzz.http.PathSafety;
 import dev.d4nilpzz.repos.*;
 import dev.d4nilpzz.utils.ChecksumUtils;
 import io.javalin.Javalin;
@@ -378,7 +379,13 @@ public class MavenController {
         String path = ctx.path();
         if (path.equals("/repo")) return "";
         if (!path.startsWith(PREFIX)) return null;
-        return decodePath(path.substring(PREFIX.length()));
+
+        String decoded = decodePath(path.substring(PREFIX.length()));
+        // This decode runs on a path the servlet container has already decoded, so a
+        // double-encoded traversal reaches it as a real one. Authorization matches on this
+        // string while the file is resolved from it, and the two must not disagree.
+        if (PathSafety.hasTraversalSegment(decoded)) return null;
+        return decoded;
     }
 
     /**

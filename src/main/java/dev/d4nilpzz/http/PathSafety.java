@@ -53,4 +53,22 @@ public final class PathSafety {
         if (name.equals(".") || name.equals("..")) return null;
         return resolve(base, name);
     }
+
+    /**
+     * Whether {@code relative} holds a {@code .} or {@code ..} segment, or a NUL byte.
+     * <p>
+     * {@link #resolve} already refuses to escape its base, but a caller that authorizes on
+     * the request string and then resolves that same string needs to know the two cannot
+     * disagree. No Maven coordinate contains a traversal segment, so rejecting them outright
+     * is what keeps the permission check and the file actually served in step.
+     */
+    public static boolean hasTraversalSegment(String relative) {
+        if (relative == null) return false;
+        if (relative.indexOf('\0') >= 0) return true;
+
+        for (String segment : relative.replace('\\', '/').split("/", -1)) {
+            if (segment.equals(".") || segment.equals("..")) return true;
+        }
+        return false;
+    }
 }

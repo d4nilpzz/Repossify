@@ -3,6 +3,7 @@ package dev.d4nilpzz.controllers;
 import dev.d4nilpzz.auth.AuthService;
 import dev.d4nilpzz.auth.RoutePermission;
 import dev.d4nilpzz.http.ErrorResponse;
+import dev.d4nilpzz.http.PathSafety;
 import dev.d4nilpzz.repos.*;
 import dev.d4nilpzz.utils.ChecksumUtils;
 import dev.d4nilpzz.utils.MavenUtils;
@@ -73,6 +74,9 @@ public class FileApiController {
         // The coordinates are the source of truth; the client-supplied path is only accepted
         // when it agrees with them, which is what the old "mach" flag was meant to assert.
         String coordinatePath = groupId.replace('.', '/') + "/" + artifactId + "/" + version;
+        if (PathSafety.hasTraversalSegment(coordinatePath)) {
+            throw new BadRequestResponse("Invalid Maven coordinates");
+        }
         if (!isBlank(relativePath) && !normalize(relativePath).equals(coordinatePath)) {
             throw new BadRequestResponse("Path does not match the Maven coordinates");
         }
@@ -149,6 +153,9 @@ public class FileApiController {
 
         // The dashboard sends paths that already include the repository name; accept both forms.
         String cleaned = normalize(path);
+        if (PathSafety.hasTraversalSegment(cleaned)) {
+            throw new BadRequestResponse("Invalid path");
+        }
         if (cleaned.equals(repositoryName)) {
             throw new BadRequestResponse("Refusing to delete the repository root");
         }

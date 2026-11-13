@@ -118,10 +118,27 @@ public class RepositoryService {
 
     /* ===================== paths ===================== */
 
-    /** Resolves {@code /repo/<name>/<path>} style input to a real file, or empty when unsafe. */
+    /**
+     * Resolves {@code /repo/<name>/<path>} style input to a real file, or empty when unsafe.
+     * <p>
+     * Anchored at the repository named by the first segment, not at {@link #root()}. Anchoring
+     * at the root let a path whose segments normalize into a <em>sibling</em> repository
+     * through, because the result was still inside the repositories directory, while every
+     * caller had authorized the request against that first segment.
+     */
     public Optional<Path> resolve(String relativePath) {
-        Path resolved = PathSafety.resolve(root(), relativePath);
-        return Optional.ofNullable(resolved);
+        String name = repositoryNameOf(relativePath);
+        if (name == null) return Optional.ofNullable(PathSafety.resolve(root(), ""));
+
+        Path repositoryRoot = PathSafety.resolveChild(root(), name);
+        if (repositoryRoot == null) return Optional.empty();
+
+        String cleaned = relativePath.replace('\\', '/');
+        while (cleaned.startsWith("/")) cleaned = cleaned.substring(1);
+        int slash = cleaned.indexOf('/');
+
+        return Optional.ofNullable(
+                PathSafety.resolve(repositoryRoot, slash < 0 ? "" : cleaned.substring(slash + 1)));
     }
 
     public Optional<Path> repositoryPath(String name) {

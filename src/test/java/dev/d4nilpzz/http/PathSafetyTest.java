@@ -61,6 +61,24 @@ class PathSafetyTest {
         assertNull(PathSafety.resolve(base, null));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"..", ".", "a/../b", "a/./b", "../a", "a/..", "a\\..\\b"})
+    void detectsTraversalSegments(String candidate) {
+        assertTrue(PathSafety.hasTraversalSegment(candidate), candidate);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "a", "a..b/c", "...", "com/example/demo/1.0.0/demo-1.0.0.jar"})
+    void acceptsPathsWithoutTraversalSegments(String candidate) {
+        assertFalse(PathSafety.hasTraversalSegment(candidate), candidate);
+    }
+
+    @Test
+    void detectsNulByteAndToleratesNull() {
+        assertTrue(PathSafety.hasTraversalSegment("a" + (char) 0 + "b"));
+        assertFalse(PathSafety.hasTraversalSegment(null));
+    }
+
     @Test
     void resolveChildAcceptsOnlyDirectChildren() {
         assertNotNull(PathSafety.resolveChild(base, "releases"));
